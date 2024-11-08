@@ -1,7 +1,12 @@
 class Game {
-  constructor(Character, window, gameScreen, touchScreen) {
+  constructor(Stack, Character, Level, window, gameScreen, touchScreen) {
     this.Character = Character;
+    this.Level = Level;
+    this.Stack = Stack;
+    this.levels = new this.Stack();
+    this.currentLevel = null;
     this.enemies = [];
+    this.bosses = [];
     this.dyingEnemies = [];
     this.lastTime = 0;
     this.speed = 0.06; // smaller number = slower
@@ -12,25 +17,8 @@ class Game {
     this.touchScreen = touchScreen;
     this.isDrawing = false;
     this.initialize.bind(this);
-    this.maxEnemies = 5;
-  }
-
-  spawnInitialEnemies() {
-    for (let i = 0; i < this.initialEnemyCount; i++) {
-      this.spawnEnemy();
-    }
-  }
-
-  spawnEnemy() {
-    if (this.enemies.length >= this.maxEnemies) return;
-    const enemy = new this.Character(50, 3);
-    this.addEnemy(enemy);
-  }
-
-  addEnemy(enemy) {
-    this.enemies.push(enemy);
-    enemy.move(this.gameScreen.getRandomPointAtEdge());
-    enemy.draw(this.gameScreen.getContext());
+    this.maxEnemies = 3;
+    this.NO_OF_LEVELS = 2;
   }
 
   resizeCanvas() {
@@ -42,6 +30,36 @@ class Game {
     const deltaTime = timestamp - this.lastTime;
     this.lastTime = timestamp;
     this.gameScreen.clearCanvas();
+
+    if (this.enemies.length === 0) {
+      while (this.bosses.length !== 0) {
+        this.enemies.push(this.bosses.pop());
+      }
+    }
+
+    if (!this.levels.isEmpty() && this.enemies.length === 0) {
+      this.currentLevel = this.levels.pop();
+    }
+
+    while (
+      !this.currentLevel.getEnemies().isEmpty() &&
+      this.enemies.length < this.maxEnemies
+    ) {
+      let enemy = this.currentLevel.getEnemies().pop();
+      enemy.move(this.gameScreen.getRandomPointAtEdge());
+      enemy.type !== "boss" && this.enemies.push(enemy);
+      enemy.type === "boss" && this.bosses.push(enemy);
+    }
+
+    if (
+      this.enemies.length === 0 &&
+      this.bosses.length === 0 &&
+      this.levels.isEmpty()
+    ) {
+      console.log("Victory");
+      this.mainChar.draw(this.gameScreen.getContext());
+      return;
+    }
 
     const [alive, dead] = this.enemies.reduce(
       ([pass, fail], enemy) => {
@@ -64,9 +82,6 @@ class Game {
     });
 
     this.enemies = alive;
-    while (this.enemies.length < this.maxEnemies) {
-      this.spawnEnemy();
-    }
 
     this.enemies.forEach((enemy, i) => {
       enemy.moveTowards(this.mainChar, this.speed * deltaTime);
@@ -94,10 +109,18 @@ class Game {
     this.resizeCanvas();
     this.window.addEventListener("resize", this.resizeCanvas);
     this.touchScreen.setHandleTouchResult(this.handleTouchResult);
+    // Set up levels
+    for (let i = 0; i < this.NO_OF_LEVELS; i++) {
+      const level = new this.Level(
+        this.Character,
+        this.Stack,
+        this.NO_OF_LEVELS - i - 1
+      );
+      this.levels.push(level);
+    }
     // Start the game loop
     this.mainChar = mainChar;
     this.gameScreen.initialize(mainChar);
-
     requestAnimationFrame(this.gameLoop);
   }
   addObject(object) {

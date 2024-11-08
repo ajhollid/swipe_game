@@ -6,9 +6,11 @@ import oneEyeImg from "/assets/images/characters/one_eye.svg";
 import spiderImg from "/assets/images/characters/spider.svg";
 import skeletonImg from "/assets/images/characters/skeleton.svg";
 import vampireImg from "/assets/images/characters/vampire.svg";
-
+import didiImg from "/assets/images/characters/didi.png";
+import bossImg from "/assets/images/characters/boss.svg";
 class Character {
-  constructor(radius, difficulty, imageUrl) {
+  constructor(radius, difficulty, type) {
+    this.type = type;
     this.x = 0;
     this.y = 0;
     this.radius = radius;
@@ -29,10 +31,16 @@ class Character {
     ];
 
     this.image = new Image();
-    if (imageUrl === undefined) {
-      this.image.src = imageUrls[Math.floor(Math.random() * imageUrls.length)];
-    } else {
-      this.image.src = imageUrl;
+    switch (this.type) {
+      case "main":
+        this.image.src = didiImg;
+        break;
+      case "boss":
+        this.image.src = bossImg;
+        break;
+      default:
+        this.image.src =
+          imageUrls[Math.floor(Math.random() * imageUrls.length)];
     }
   }
 
@@ -88,19 +96,18 @@ class Character {
   }
 
   shake() {
-    const originalX = this.x;
-    const originalY = this.y;
     const startTime = performance.now();
     const duration = 500; // shake duration in ms
     const intensity = 5; // maximum shake distance in pixels
+    let lastFrameTime = startTime;
 
     const animate = (currentTime) => {
       const elapsed = currentTime - startTime;
       const progress = elapsed / duration;
+      const deltaTime = currentTime - lastFrameTime;
+      lastFrameTime = currentTime;
 
       if (progress >= 1) {
-        // Animation complete, return to original position
-        this.move({ x: originalX, y: originalY });
         return;
       }
 
@@ -109,11 +116,9 @@ class Character {
       const xOffset = Math.sin(progress * 40) * decreasingIntensity;
       const yOffset = Math.cos(progress * 40) * decreasingIntensity;
 
-      // Apply shake offset
-      this.move({
-        x: originalX + xOffset,
-        y: originalY + yOffset,
-      });
+      // Apply shake offset without overwriting the base position
+      this.x += xOffset;
+      this.y += yOffset;
 
       requestAnimationFrame(animate);
     };
@@ -160,17 +165,47 @@ class Character {
     context.strokeStyle = "black";
     context.lineWidth = lineWidth;
 
+    const totalWidth = (stackArray.length - 1) * spacing + lineLength;
+    const padding = 10;
+
+    // Adjust starting X position if symbols would be off-screen
+    let adjustedStartX = startX;
+    if (startX - lineLength / 2 < padding) {
+      // Shift entire line right if too far left
+      adjustedStartX = padding + lineLength / 2;
+    } else if (
+      startX + totalWidth - lineLength / 2 >
+      context.canvas.width - padding
+    ) {
+      // Shift entire line left if too far right
+      adjustedStartX =
+        context.canvas.width - padding - totalWidth + lineLength / 2;
+    }
+
+    context.strokeStyle = "black";
+    context.lineWidth = lineWidth;
+
     stackArray.forEach((target, index) => {
-      const xPos = startX + index * spacing;
+      // Calculate the y position where we would normally draw (above character)
+      const normalYPos = this.y - this.radius - 30;
+
+      // Check if this would put the symbols off-screen (including some padding)
+      const wouldBeOffscreen = normalYPos - lineLength < padding;
+
+      // Draw below if would be offscreen, otherwise draw above
+      const yPos = wouldBeOffscreen
+        ? this.y + this.radius + 30 // Below character
+        : normalYPos; // Above character
+
+      const xPos = adjustedStartX + index * spacing;
+
       context.beginPath();
       if (target === "|") {
-        // Vertical line
-        context.moveTo(xPos, y);
-        context.lineTo(xPos, y + lineLength);
+        context.moveTo(xPos, yPos);
+        context.lineTo(xPos, yPos + lineLength);
       } else if (target === "-") {
-        // Horizontal line
-        context.moveTo(xPos - lineLength / 2, y + lineLength / 2);
-        context.lineTo(xPos + lineLength / 2, y + lineLength / 2);
+        context.moveTo(xPos - lineLength / 2, yPos + lineLength / 2);
+        context.lineTo(xPos + lineLength / 2, yPos + lineLength / 2);
       }
       context.stroke();
       context.closePath();
